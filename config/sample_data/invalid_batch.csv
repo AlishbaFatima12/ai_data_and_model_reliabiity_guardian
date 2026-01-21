@@ -1,0 +1,7 @@
+id,name,email,amount,quantity,created_at,status
+1,John Smith,john.smith@example.com,150.50,5,2026-01-18 10:00:00,active
+2,Jane Doe,invalid-email,-50.00,0,2026-01-18 11:00:00,active
+3,,bob.wilson@example.com,99.99,3,2026-01-18 12:00:00,unknown_status
+4,Alice Brown,alice.brown@example.com,2000000.00,15,2026-01-18 13:00:00,active
+5,Charlie Davis,charlie.davis@example.com,125.75,8,invalid-date,inactive
+1,John Smith,john.smith@example.com,150.50,5,2026-01-18 10:00:00,active

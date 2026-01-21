@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "id": "orders-v1.0",
+  "name": "Orders Schema",
+  "version": "1.0.0",
+  "source": "orders",
+  "type": "object",
+  "required": ["order_id", "customer_id", "order_total", "created_at"],
+  "properties": {
+    "order_id": {
+      "type": "string",
+      "pattern": "^ORD-[0-9]{8}$",
+      "description": "Unique order identifier"
+    },
+    "customer_id": {
+      "type": "string",
+      "description": "Reference to customer record"
+    },
+    "order_total": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total order amount"
+    },
+    "discount": {
+      "type": "number",
+      "minimum": 0,
+      "default": 0,
+      "description": "Discount applied to order"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PENDING", "CONFIRMED", "SHIPPED", "DELIVERED"],
+      "description": "Current order status"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Order creation timestamp"
+    }
+  },
+  "additionalProperties": false,
+  "x-column-criticality": {
+    "order_id": "required",
+    "customer_id": "required",
+    "order_total": "required",
+    "discount": "optional",
+    "status": "required",
+    "created_at": "required"
+  },
+  "x-metadata": {
+    "owner": "data-platform-team",
+    "created": "2026-01-18",
+    "description": "Schema contract for order data validation"
+  }
+}

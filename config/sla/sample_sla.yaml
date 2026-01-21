@@ -1,0 +1,57 @@
+# SLA Definitions Configuration
+# Feature: 003-silver-tier-enforcement
+
+sla_definitions:
+  - id: sla-orders-hourly
+    source: orders
+    schedule: "0 * * * *"  # Every hour at :00
+    freshness_threshold:
+      warning_minutes: 60
+      critical_minutes: 90
+    latency_threshold: 1800  # 30 minutes max end-to-end
+    enabled: true
+    owner: data-platform-team
+    description: Orders data expected hourly from upstream system
+
+  - id: sla-customers-daily
+    source: customers
+    schedule: "0 6 * * *"  # Daily at 6:00 AM
+    freshness_threshold:
+      warning_minutes: 1440  # 24 hours
+      critical_minutes: 2880  # 48 hours
+    latency_threshold: 3600  # 1 hour max end-to-end
+    enabled: true
+    owner: data-platform-team
+    description: Customer master data expected daily
+
+  - id: sla-inventory-realtime
+    source: inventory
+    schedule: "*/15 * * * *"  # Every 15 minutes
+    freshness_threshold:
+      warning_minutes: 15
+      critical_minutes: 30
+    latency_threshold: 300  # 5 minutes max end-to-end
+    enabled: true
+    owner: operations-team
+    description: Real-time inventory updates
+
+# Default SLA settings (used when source has no specific SLA)
+defaults:
+  freshness_threshold:
+    warning_minutes: 60
+    critical_minutes: 120
+  latency_threshold: 1800
+  enabled: true
+
+# Escalation paths
+escalation:
+  warning:
+    channels:
+      - console
+      - log
+    delay_seconds: 300  # Wait 5 minutes before alerting
+  critical:
+    channels:
+      - console
+      - log
+    delay_seconds: 0  # Immediate alert

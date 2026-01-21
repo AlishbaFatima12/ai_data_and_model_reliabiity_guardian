@@ -1,0 +1,390 @@
+# Silver Anomaly API Contract
+# Feature: 003-silver-tier-enforcement
+# Date: 2026-01-18
+
+openapi: 3.1.0
+info:
+  title: Silver Anomaly API
+  description: Unified API for Silver Tier anomalies across all three layers
+  version: 1.0.0
+
+components:
+  schemas:
+    SeverityLevel:
+      type: string
+      enum: [INFO, WARNING, CRITICAL]
+      description: |
+        Severity levels per Constitution Section 4.2:
+        - INFO (0-39): Log only, no alert
+        - WARNING (40-69): Alert within 5 minutes
+        - CRITICAL (70-100): Alert within 1 minute
+
+    SilverAnomalyType:
+      type: string
+      enum: [SCHEMA, BUSINESS_LOGIC, FRESHNESS]
+      description: Which Silver tier layer detected the anomaly
+
+    SilverAnomaly:
+      type: object
+      description: Base type for all Silver tier anomalies
+      required:
+        - id
+        - type
+        - failure_code
+        - severity
+        - batch_id
+        - timestamp
+        - explanation
+      properties:
+        id:
+          type: string
+          description: Unique anomaly identifier
+        type:
+          $ref: '#/components/schemas/SilverAnomalyType'
+        failure_code:
+          type: string
+          description: SC-xxx, BL-xxx, or FR-xxx
+        severity:
+          $ref: '#/components/schemas/SeverityLevel'
+        severity_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Calculated severity score
+        batch_id:
+          type: string
+          description: Associated data batch
+        timestamp:
+          type: string
+          format: date-time
+        explanation:
+          type: string
+          description: Human-readable description
+        root_cause:
+          type: string
+          description: Attribution of probable cause
+        confidence:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Root cause attribution confidence
+        details:
+          type: object
+          additionalProperties: true
+
+    SilverValidationResult:
+      type: object
+      description: Complete Silver tier validation result
+      required:
+        - id
+        - batch_id
+        - passed
+        - layer_results
+        - health_score
+        - timestamp
+      properties:
+        id:
+          type: string
+        batch_id:
+          type: string
+        passed:
+          type: boolean
+          description: True if all layers pass
+        layer_results:
+          type: object
+          properties:
+            schema:
+              $ref: '#/components/schemas/LayerResult'
+            business_logic:
+              $ref: '#/components/schemas/LayerResult'
+            freshness:
+              $ref: '#/components/schemas/LayerResult'
+        anomalies:
+          type: array
+          items:
+            $ref: '#/components/schemas/SilverAnomaly'
+        health_score:
+          $ref: '#/components/schemas/SilverTierHealthScore'
+        blocking_anomalies:
+          type: integer
+          description: Count of CRITICAL anomalies blocking processing
+        timestamp:
+          type: string
+          format: date-time
+        duration_ms:
+          type: integer
+          description: Total validation duration
+
+    LayerResult:
+      type: object
+      required:
+        - layer
+        - passed
+        - score
+        - anomaly_count
+      properties:
+        layer:
+          type: string
+          enum: [schema, business_logic, freshness]
+        passed:
+          type: boolean
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        anomaly_count:
+          type: integer
+          minimum: 0
+        anomalies:
+          type: array
+          items:
+            $ref: '#/components/schemas/SilverAnomaly'
+
+    SilverTierHealthScore:
+      type: object
+      description: Aggregated health across Silver tier layers
+      required:
+        - timestamp
+        - overall_score
+        - schema_score
+        - business_logic_score
+        - freshness_score
+        - trend
+        - active_anomalies
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        overall_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Minimum of all layer scores (Constitution 6.3)
+        schema_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Layer 2 health
+        business_logic_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Layer 3 health
+        freshness_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Layer 4 health
+        trend:
+          type: string
+          enum: [IMPROVING, STABLE, DEGRADING]
+          description: Direction of health change
+        active_anomalies:
+          type: object
+          properties:
+            schema:
+              type: integer
+              minimum: 0
+            business_logic:
+              type: integer
+              minimum: 0
+            freshness:
+              type: integer
+              minimum: 0
+            total:
+              type: integer
+              minimum: 0
+        last_validation:
+          type: string
+          format: date-time
+
+    IncidentFromAnomaly:
+      type: object
+      description: Incident created from Silver anomaly
+      required:
+        - incident_id
+        - anomaly_ids
+        - severity
+        - status
+        - created_at
+      properties:
+        incident_id:
+          type: string
+        anomaly_ids:
+          type: array
+          items:
+            type: string
+          description: Related anomaly IDs
+        severity:
+          $ref: '#/components/schemas/SeverityLevel'
+        status:
+          type: string
+          enum: [OPEN, ACKNOWLEDGED, INVESTIGATING, RESOLVED, CLOSED]
+        title:
+          type: string
+          description: Plain-language incident title
+        root_cause:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        acknowledged_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          format: date-time
+        owner:
+          type: string
+          description: Assigned owner
+
+# Service APIs
+paths:
+  /silver/validate:
+    post:
+      operationId: validateSilver
+      summary: Run complete Silver tier validation
+      description: Validates batch through all three Silver layers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [batch_id, source]
+              properties:
+                batch_id:
+                  type: string
+                  description: Batch to validate (must have passed Bronze)
+                source:
+                  type: string
+                  description: Data source name
+      responses:
+        '200':
+          description: Validation complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SilverValidationResult'
+
+  /silver/health:
+    get:
+      operationId: getSilverHealth
+      summary: Get Silver tier health score
+      description: Returns current aggregated health across all Silver layers
+      responses:
+        '200':
+          description: Health score
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SilverTierHealthScore'
+
+  /silver/anomalies:
+    get:
+      operationId: listSilverAnomalies
+      summary: List Silver tier anomalies
+      description: Returns recent anomalies from all Silver layers
+      parameters:
+        - name: layer
+          in: query
+          schema:
+            $ref: '#/components/schemas/SilverAnomalyType'
+          description: Filter by layer
+        - name: severity
+          in: query
+          schema:
+            $ref: '#/components/schemas/SeverityLevel'
+          description: Filter by severity
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter anomalies after this time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+      responses:
+        '200':
+          description: Anomaly list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  anomalies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SilverAnomaly'
+                  total:
+                    type: integer
+                  has_more:
+                    type: boolean
+
+  /skills/silver/incident:
+    post:
+      operationId: silverIncident
+      summary: Create/manage incidents
+      description: Creates incident from anomaly or updates existing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [anomaly]
+              properties:
+                anomaly:
+                  $ref: '#/components/schemas/SilverAnomaly'
+      responses:
+        '200':
+          description: Incident created/updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  incident_id:
+                    type: string
+                  status:
+                    type: string
+                  created:
+                    type: boolean
+
+  /skills/silver/rootcause:
+    post:
+      operationId: silverRootcause
+      summary: Attribute probable cause
+      description: Analyzes anomaly to determine root cause
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [anomaly]
+              properties:
+                anomaly:
+                  $ref: '#/components/schemas/SilverAnomaly'
+      responses:
+        '200':
+          description: Root cause attributed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cause:
+                    type: string
+                  confidence_pct:
+                    type: integer
+                    minimum: 0
+                    maximum: 100
+                  alternatives:
+                    type: array
+                    items:
+                      type: string

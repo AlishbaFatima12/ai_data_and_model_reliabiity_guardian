@@ -1,0 +1,313 @@
+# Schema Contract API Contract
+# Feature: 003-silver-tier-enforcement
+# Date: 2026-01-18
+
+openapi: 3.1.0
+info:
+  title: Schema Contract API
+  description: API for managing schema contracts in Silver Tier Layer 2
+  version: 1.0.0
+
+components:
+  schemas:
+    ColumnCriticality:
+      type: string
+      enum: [required, optional]
+      description: Determines severity of missing/invalid column (required=CRITICAL, optional=WARNING)
+
+    DataType:
+      type: string
+      enum: [string, integer, decimal, datetime, boolean]
+      description: Column data type
+
+    ConstraintType:
+      type: string
+      enum: [PRIMARY_KEY, FOREIGN_KEY, UNIQUE]
+      description: Type of database constraint
+
+    CompatibilityMode:
+      type: string
+      enum: [BACKWARD, FORWARD, FULL, NONE]
+      description: Schema version compatibility mode
+
+    ColumnDefinition:
+      type: object
+      required:
+        - name
+        - type
+        - required
+        - criticality
+      properties:
+        name:
+          type: string
+          description: Column name
+          example: "customer_id"
+        type:
+          $ref: '#/components/schemas/DataType'
+        required:
+          type: boolean
+          description: Whether column must be present
+        criticality:
+          $ref: '#/components/schemas/ColumnCriticality'
+        precision:
+          type: integer
+          description: For decimal types, total digits
+          minimum: 1
+          maximum: 38
+        scale:
+          type: integer
+          description: For decimal types, digits after decimal
+          minimum: 0
+        pattern:
+          type: string
+          description: Regex pattern for string validation
+          example: "^ORD-[0-9]{8}$"
+        min_value:
+          description: Minimum allowed value (type depends on column type)
+        max_value:
+          description: Maximum allowed value (type depends on column type)
+
+    Constraint:
+      type: object
+      required:
+        - type
+        - columns
+      properties:
+        type:
+          $ref: '#/components/schemas/ConstraintType'
+        columns:
+          type: array
+          items:
+            type: string
+          description: Columns involved in constraint
+          example: ["order_id"]
+        references:
+          type: string
+          description: For FOREIGN_KEY, referenced table.column
+          example: "customers.id"
+
+    SchemaContract:
+      type: object
+      required:
+        - id
+        - name
+        - version
+        - source
+        - schema
+        - columns
+        - compatibility
+        - checksum
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Unique contract identifier
+          example: "orders-v2.1"
+        name:
+          type: string
+          description: Human-readable name
+          example: "Orders Schema"
+        version:
+          type: string
+          pattern: "^\\d+\\.\\d+\\.\\d+$"
+          description: Semantic version
+          example: "2.1.0"
+        source:
+          type: string
+          description: Data source this contract applies to
+          example: "orders"
+        schema:
+          type: object
+          description: JSON Schema definition
+          additionalProperties: true
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/ColumnDefinition'
+        constraints:
+          type: array
+          items:
+            $ref: '#/components/schemas/Constraint'
+          default: []
+        compatibility:
+          $ref: '#/components/schemas/CompatibilityMode'
+        checksum:
+          type: string
+          description: SHA-256 hash of schema
+          pattern: "^[a-f0-9]{64}$"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+          default: {}
+
+    SchemaValidationRequest:
+      type: object
+      required:
+        - contract_id
+        - batch_id
+        - data
+      properties:
+        contract_id:
+          type: string
+          description: Schema contract to validate against
+        batch_id:
+          type: string
+          description: Batch being validated
+        data:
+          type: array
+          items:
+            type: object
+          description: Records to validate
+
+    SchemaValidationResult:
+      type: object
+      required:
+        - valid
+        - contract_id
+        - batch_id
+        - anomalies
+        - timestamp
+      properties:
+        valid:
+          type: boolean
+          description: True if all records pass schema validation
+        contract_id:
+          type: string
+        batch_id:
+          type: string
+        anomalies:
+          type: array
+          items:
+            $ref: '#/components/schemas/SchemaAnomaly'
+        blocking:
+          type: boolean
+          description: True if CRITICAL violations prevent processing
+          default: false
+        timestamp:
+          type: string
+          format: date-time
+
+    SchemaAnomaly:
+      type: object
+      required:
+        - id
+        - failure_code
+        - severity
+        - contract_id
+        - contract_version
+        - affected_columns
+        - violation_details
+        - batch_id
+        - timestamp
+        - explanation
+        - blocking
+      properties:
+        id:
+          type: string
+        failure_code:
+          type: string
+          enum: [SC-001, SC-002, SC-003, SC-004, SC-005, SC-006, SC-007, SC-008]
+          description: |
+            Schema failure codes:
+            - SC-001: Missing Column
+            - SC-002: Extra Column
+            - SC-003: Column Type Change
+            - SC-004: Precision Loss
+            - SC-005: Constraint Violation
+            - SC-006: Version Mismatch
+            - SC-007: Breaking Change
+            - SC-008: Contract Hash Mismatch
+        severity:
+          type: string
+          enum: [INFO, WARNING, CRITICAL]
+        contract_id:
+          type: string
+        contract_version:
+          type: string
+        affected_columns:
+          type: array
+          items:
+            type: string
+        violation_details:
+          type: array
+          items:
+            type: object
+            properties:
+              column:
+                type: string
+              issue:
+                type: string
+              expected:
+                type: string
+              actual:
+                type: string
+        batch_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        explanation:
+          type: string
+          description: Human-readable description
+        blocking:
+          type: boolean
+          description: Prevents downstream processing
+
+# Skill contracts (internal APIs)
+paths:
+  /skills/silver/schema:
+    post:
+      operationId: silverSchema
+      summary: Compare data to schema contract
+      description: Validates batch data against registered schema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SchemaValidationRequest'
+      responses:
+        '200':
+          description: Validation complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaValidationResult'
+
+  /skills/silver/version:
+    post:
+      operationId: silverVersion
+      summary: Check schema version compatibility
+      description: Compares two schema versions for breaking changes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [old_version, new_version]
+              properties:
+                old_version:
+                  type: string
+                new_version:
+                  type: string
+      responses:
+        '200':
+          description: Comparison complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  compatible:
+                    type: boolean
+                  breaking_changes:
+                    type: array
+                    items:
+                      type: string

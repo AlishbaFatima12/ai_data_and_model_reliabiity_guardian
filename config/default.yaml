@@ -1,0 +1,68 @@
+# DMRG-FTE Default Configuration
+# Bronze Tier MVP with Orchestrator
+
+orchestrator:
+  # Directory to watch for incoming data files
+  watch_path: "data/incoming"
+  # File patterns to monitor (glob patterns)
+  file_patterns:
+    - "*.csv"
+    - "*.json"
+  # Minimum interval between scheduled validations (seconds)
+  scheduler_interval: 30
+  # Heartbeat emission interval (seconds) - per FR-014
+  heartbeat_interval: 60
+  # Maximum concurrent validations (single for MVP)
+  max_concurrent: 1
+
+validation:
+  # Maximum batch size (records) - per Assumption 5
+  max_batch_size: 100000
+  # Chunk size for processing large batches
+  chunk_size: 10000
+  # Timeout per record (milliseconds) - per Constitution 9.1
+  timeout_per_record_ms: 100
+  # Target validation time for 10K records (seconds) - per SC-001
+  target_10k_seconds: 5
+
+alerting:
+  # Time to dispatch CRITICAL alerts (seconds) - per SC-002
+  critical_dispatch_seconds: 60
+  # Time to dispatch WARNING alerts (seconds) - per SC-002
+  warning_dispatch_seconds: 300
+  # Console output enabled
+  console_enabled: true
+  # Log file output enabled
+  log_enabled: true
+
+storage:
+  # Checkpoint directory
+  checkpoints_path: "data/checkpoints"
+  # Quarantine directory
+  quarantine_path: "data/quarantine"
+  # Health state file
+  health_state_path: "data/state/health.json"
+  # Validation results directory
+  results_path: "data/results"
+  # Audit log directory
+  audit_log_path: "logs/audit"
+  # Alert log directory
+  alert_log_path: "logs/alerts"
+
+recovery:
+  # Maximum recovery time (seconds) - per SC-006
+  max_recovery_seconds: 60
+  # Enable checkpoint on validation start
+  checkpoint_on_start: true
+  # Enable checkpoint on validation complete
+  checkpoint_on_complete: true
+
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+  # JSON format for structured logging - per FR-023
+  json_format: true
+  # Include timestamps
+  include_timestamp: true
+  # Include correlation IDs
+  include_correlation_id: true

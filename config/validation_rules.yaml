@@ -1,0 +1,136 @@
+# DMRG-FTE Validation Rules Configuration
+# Defines field-level validation rules for Bronze tier
+
+# Severity weight configuration for score calculation
+# Formula: Score = (Impact × 40) + (Frequency × 30) + (Recency × 30)
+severity_weights:
+  impact: 0.40
+  frequency: 0.30
+  recency: 0.30
+
+# Severity thresholds (score ranges)
+severity_thresholds:
+  critical:
+    min_score: 70
+    max_score: 100
+  warning:
+    min_score: 40
+    max_score: 69
+  info:
+    min_score: 0
+    max_score: 39
+
+# Default tolerance levels
+defaults:
+  # Percentage of null values allowed before triggering anomaly
+  null_tolerance_percent: 5.0
+  # Percentage of type mismatches allowed
+  type_mismatch_tolerance_percent: 1.0
+  # Duplicate threshold percentage
+  duplicate_tolerance_percent: 0.5
+
+# Sample schema definition (override per data source)
+schemas:
+  default:
+    # Field definitions with validation rules
+    fields:
+      id:
+        type: "integer"
+        required: true
+        unique: true
+        nullable: false
+
+      name:
+        type: "string"
+        required: true
+        nullable: false
+        max_length: 255
+        pattern: "^[A-Za-z0-9\\s\\-\\.]+$"
+
+      email:
+        type: "string"
+        required: false
+        nullable: true
+        pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+
+      amount:
+        type: "float"
+        required: true
+        nullable: false
+        min_value: 0.0
+        max_value: 1000000.0
+
+      quantity:
+        type: "integer"
+        required: true
+        nullable: false
+        min_value: 1
+        max_value: 10000
+
+      created_at:
+        type: "datetime"
+        required: true
+        nullable: false
+        format: "%Y-%m-%d %H:%M:%S"
+
+      status:
+        type: "string"
+        required: true
+        nullable: false
+        allowed_values:
+          - "active"
+          - "inactive"
+          - "pending"
+          - "archived"
+
+    # Expected record count range (for count validation)
+    expected_count:
+      min: 1
+      max: 100000
+
+    # Encoding validation
+    encoding:
+      expected: "utf-8"
+      strict: true
+
+# Failure code definitions (per spec FR-001 to FR-008)
+failure_codes:
+  DV-001:
+    name: "Record Count Mismatch"
+    description: "Actual record count differs from expected"
+    default_severity: "WARNING"
+
+  DV-002:
+    name: "Null Value Detected"
+    description: "Unexpected null or missing values in required field"
+    default_severity: "WARNING"
+
+  DV-003:
+    name: "Type Mismatch"
+    description: "Field value does not match expected data type"
+    default_severity: "CRITICAL"
+
+  DV-004:
+    name: "Range Violation"
+    description: "Numeric value outside allowed range"
+    default_severity: "WARNING"
+
+  DV-005:
+    name: "Format Violation"
+    description: "Value does not match expected pattern/format"
+    default_severity: "INFO"
+
+  DV-006:
+    name: "Duplicate Detected"
+    description: "Exact duplicate record found"
+    default_severity: "WARNING"
+
+  DV-007:
+    name: "Encoding Error"
+    description: "Invalid character encoding detected"
+    default_severity: "CRITICAL"
+
+  DV-008:
+    name: "Schema Violation"
+    description: "Record structure does not match expected schema"
+    default_severity: "CRITICAL"

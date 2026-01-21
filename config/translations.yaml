@@ -1,0 +1,184 @@
+# Business Impact Translations
+# Maps technical failure codes and metrics to business language
+# per Constitution Section 6.5
+
+# Health summary templates (FR-005)
+health_summary:
+  excellent:
+    template: "All systems healthy. No issues detected in the past {hours} hours."
+    hours: 24
+  good:
+    template: "Systems operating normally with {warning_count} minor issues under review."
+  fair:
+    template: "{issue_count} data quality issues detected. Some reports may be affected."
+  poor:
+    template: "ATTENTION: {critical_count} critical issues require immediate review. {impact}"
+  critical:
+    template: "ALERT: Major data quality problems detected. {critical_count} critical issues affecting {affected_systems}."
+
+# Failure code translations (FR-014)
+# Bronze tier failure codes (DV-001 to DV-008)
+failure_codes:
+  DV-001:
+    name: "Record Count Mismatch"
+    business_description: "The expected number of records was not received."
+    impact_template: "Expected {expected} records but received {actual}. This may indicate missing or duplicate data transfers."
+    affected_processes:
+      - "Data reconciliation"
+      - "Reporting accuracy"
+    recommended_actions:
+      - "Verify source system data extraction"
+      - "Check for transfer errors or timeouts"
+      - "Compare with source system counts"
+    severity_impact: "Medium"
+
+  DV-002:
+    name: "Missing Required Data"
+    business_description: "Required information is missing from records."
+    impact_template: "{field} is missing in {count} records ({percentage}% of batch). Affected records cannot be processed."
+    affected_processes:
+      - "Customer data completeness"
+      - "Order processing"
+      - "Regulatory reporting"
+    recommended_actions:
+      - "Identify source of missing data"
+      - "Check upstream data entry processes"
+      - "Review affected records manually"
+    severity_impact: "High"
+
+  DV-003:
+    name: "Data Type Error"
+    business_description: "Data format does not match expected type."
+    impact_template: "{field} contains invalid data type in {count} records. Expected {expected_type} but found {actual_type}."
+    affected_processes:
+      - "Data integration"
+      - "Automated processing"
+    recommended_actions:
+      - "Review source data format"
+      - "Check for encoding issues"
+      - "Validate data entry forms"
+    severity_impact: "Medium"
+
+  DV-004:
+    name: "Value Out of Range"
+    business_description: "Data values are outside acceptable limits."
+    impact_template: "{field} contains out-of-range values ({min_found} to {max_found}). Expected range: {expected_min} to {expected_max}."
+    affected_processes:
+      - "Financial calculations"
+      - "Inventory management"
+      - "Performance metrics"
+    recommended_actions:
+      - "Verify business rules for valid ranges"
+      - "Check for data entry errors"
+      - "Review automated calculations"
+    severity_impact: "High"
+
+  DV-005:
+    name: "Format Violation"
+    business_description: "Data does not match expected format or pattern."
+    impact_template: "{field} format is invalid in {count} records. Examples: {examples}."
+    affected_processes:
+      - "Email communications"
+      - "Phone contact"
+      - "Address verification"
+    recommended_actions:
+      - "Review data entry validation"
+      - "Check for copy-paste errors"
+      - "Validate import mappings"
+    severity_impact: "Low"
+
+  DV-006:
+    name: "Duplicate Records"
+    business_description: "Identical records found in the dataset."
+    impact_template: "{count} duplicate records detected. This may cause double-counting in reports."
+    affected_processes:
+      - "Financial reporting"
+      - "Customer counts"
+      - "Inventory tracking"
+    recommended_actions:
+      - "Identify duplicate source"
+      - "Review deduplication logic"
+      - "Check for double-submission"
+    severity_impact: "High"
+
+  DV-007:
+    name: "Encoding Error"
+    business_description: "Character encoding issues detected in data."
+    impact_template: "Invalid characters found in {count} records. This may affect display and searchability."
+    affected_processes:
+      - "Customer communications"
+      - "Search functionality"
+      - "Data export"
+    recommended_actions:
+      - "Check source system encoding settings"
+      - "Verify file transfer settings"
+      - "Review international character handling"
+    severity_impact: "Low"
+
+  DV-008:
+    name: "Schema Violation"
+    business_description: "Data structure does not match expected format."
+    impact_template: "Schema mismatch detected: {details}. Data cannot be processed until resolved."
+    affected_processes:
+      - "Data pipeline"
+      - "Integration systems"
+      - "All downstream processes"
+    recommended_actions:
+      - "Contact source system team"
+      - "Review schema change history"
+      - "Update integration mappings"
+    severity_impact: "Critical"
+
+# Freshness impact templates (Constitution 6.5)
+freshness:
+  stale_data:
+    template: "Customer data may not reflect orders from the last {hours} hours."
+  sla_at_risk:
+    template: "Delivery commitment to {customer} may be missed by {time}."
+  missing_delivery:
+    template: "Expected data from {source} has not arrived. Last update: {last_update}."
+
+# Model impact templates
+model:
+  accuracy_degradation:
+    template: "Approximately {incorrect} out of 100 predictions may be incorrect."
+  fairness_violation:
+    template: "Model may be treating {group_a} differently than {group_b}."
+  drift_detected:
+    template: "Model performance has changed significantly. Review recommended."
+
+# Business process mappings
+business_processes:
+  data_reconciliation:
+    name: "Data Reconciliation"
+    description: "Daily verification of data accuracy"
+  financial_reporting:
+    name: "Financial Reporting"
+    description: "Generation of financial statements and reports"
+  customer_communications:
+    name: "Customer Communications"
+    description: "Email, SMS, and notification delivery"
+  order_processing:
+    name: "Order Processing"
+    description: "Order intake and fulfillment"
+  inventory_management:
+    name: "Inventory Management"
+    description: "Stock tracking and replenishment"
+  regulatory_reporting:
+    name: "Regulatory Reporting"
+    description: "Compliance and regulatory submissions"
+
+# Customer segment impacts
+customer_segments:
+  all:
+    name: "All Customers"
+    description: "Entire customer base"
+  enterprise:
+    name: "Enterprise"
+    description: "Large business accounts"
+  small_business:
+    name: "Small Business"
+    description: "SMB customers"
+  retail:
+    name: "Retail"
+    description: "Individual consumers"

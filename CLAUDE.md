@@ -208,3 +208,12 @@ Wait for consent; never auto-create ADRs. Group related decisions (stacks, authe
 
 ## Code Standards
 See `.specify/memory/constitution.md` for code quality, testing, performance, security, and architecture principles.
+
+## Active Technologies
+- Python 3.11+ (001-bronze-orchestrator-mvp)
+- File-based (JSON/CSV for data, JSON for checkpoints and logs) (001-bronze-orchestrator-mvp)
+- Python 3.11+ + Streamlit 1.33+, Plotly 5.x, Pydantic 2.x (reuse from Bronze) (002-unified-dashboard)
+- File-based (JSON/JSONL) - reuse existing Bronze tier output paths (002-unified-dashboard)
+
+## Recent Changes
+- 001-bronze-orchestrator-mvp: Added Python 3.11+

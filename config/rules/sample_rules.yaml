@@ -1,0 +1,77 @@
+# Business Rules Configuration
+# Feature: 003-silver-tier-enforcement
+# Source: orders
+
+rules:
+  # Cross-field validation rules
+  - id: BL-001-discount-limit
+    name: Discount cannot exceed order total
+    type: domain
+    expression: "discount <= order_total"
+    severity: critical
+    enabled: true
+    failure_code: BL-006
+    description: Ensures discount amount is not greater than the order total
+
+  - id: BL-002-date-order
+    name: End date must be after start date
+    type: crossfield
+    expression: "end_date > start_date"
+    severity: critical
+    enabled: true
+    failure_code: BL-001
+    description: Validates temporal ordering of date fields
+
+  # Referential integrity rules
+  - id: BL-003-customer-exists
+    name: Customer must exist in reference data
+    type: referential
+    field: customer_id
+    reference: customers
+    severity: critical
+    enabled: true
+    failure_code: BL-002
+    description: Validates customer_id exists in the customers reference set
+
+  # State transition rules
+  - id: BL-004-valid-status
+    name: Valid order status transition
+    type: state_transition
+    field: status
+    allowed_values:
+      - PENDING
+      - CONFIRMED
+      - SHIPPED
+      - DELIVERED
+    severity: critical
+    enabled: true
+    failure_code: BL-004
+    description: Ensures order status follows valid lifecycle transitions
+
+  # Calculation validation rules
+  - id: BL-005-line-item-sum
+    name: Line items must sum to order total
+    type: calculation
+    expression: "sum(line_items.amount) == order_total"
+    tolerance: 0.01
+    severity: warning
+    enabled: true
+    failure_code: BL-003
+    description: Verifies order total matches sum of line items
+
+  # Temporal rules
+  - id: BL-006-no-future-dates
+    name: Created date cannot be in the future
+    type: temporal
+    field: created_at
+    rule: not_future
+    severity: warning
+    enabled: true
+    failure_code: BL-005
+    description: Prevents records with future creation dates
+
+# Default settings
+defaults:
+  null_handling: skip  # skip | treat_as_violation
+  severity: warning
+  enabled: true

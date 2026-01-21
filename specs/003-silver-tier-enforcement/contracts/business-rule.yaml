@@ -1,0 +1,388 @@
+# Business Rule API Contract
+# Feature: 003-silver-tier-enforcement
+# Date: 2026-01-18
+
+openapi: 3.1.0
+info:
+  title: Business Rule API
+  description: API for managing business rules in Silver Tier Layer 3
+  version: 1.0.0
+
+components:
+  schemas:
+    RuleType:
+      type: string
+      enum:
+        - crossfield
+        - referential
+        - calculation
+        - state_transition
+        - temporal
+        - domain
+        - distribution
+        - orphan
+      description: Type of business rule validation
+
+    BusinessRule:
+      type: object
+      required:
+        - id
+        - name
+        - source
+        - type
+        - severity
+        - enabled
+        - failure_code
+      properties:
+        id:
+          type: string
+          description: Unique rule identifier
+          example: "BL-001-date-order"
+        name:
+          type: string
+          description: Human-readable rule name
+          example: "End date must be after start date"
+        source:
+          type: string
+          description: Data source this rule applies to
+          example: "orders"
+        type:
+          $ref: '#/components/schemas/RuleType'
+        expression:
+          type: string
+          description: Rule expression for comparison/calculation types
+          example: "end_date > start_date"
+        field:
+          type: string
+          description: Primary field for referential/state types
+          example: "account_id"
+        reference:
+          type: string
+          description: Reference source for referential type
+          example: "accounts"
+        allowed_values:
+          type: array
+          items:
+            type: string
+          description: Valid values for state transition type
+          example: ["PENDING", "CONFIRMED", "SHIPPED", "DELIVERED"]
+        tolerance:
+          type: number
+          description: Tolerance for calculation comparisons
+          default: 0.0
+          example: 0.01
+        severity:
+          type: string
+          enum: [INFO, WARNING, CRITICAL]
+        enabled:
+          type: boolean
+          default: true
+        description:
+          type: string
+          description: Rule purpose and documentation
+        failure_code:
+          type: string
+          enum: [BL-001, BL-002, BL-003, BL-004, BL-005, BL-006, BL-007, BL-008]
+          description: |
+            Business logic failure codes:
+            - BL-001: Cross-Field Inconsistency
+            - BL-002: Referential Break
+            - BL-003: Calculation Error
+            - BL-004: Invalid State Transition
+            - BL-005: Temporal Anomaly
+            - BL-006: Domain Rule Violation
+            - BL-007: Distribution Shift
+            - BL-008: Orphan Record
+
+    ReferenceDataSet:
+      type: object
+      required:
+        - name
+        - source_path
+        - key_column
+        - values
+        - loaded_at
+        - record_count
+      properties:
+        name:
+          type: string
+          description: Reference set name
+          example: "accounts"
+        source_path:
+          type: string
+          description: File path (CSV or JSON)
+          example: "data/reference/accounts.csv"
+        key_column:
+          type: string
+          description: Column to use as lookup key
+          example: "id"
+        values:
+          type: array
+          items:
+            type: string
+          description: Loaded values for lookup
+        loaded_at:
+          type: string
+          format: date-time
+        record_count:
+          type: integer
+          minimum: 0
+        refresh_interval:
+          type: string
+          description: ISO 8601 duration for auto-refresh
+          example: "PT1H"
+          default: "PT1H"
+        last_refresh:
+          type: string
+          format: date-time
+
+    BusinessRuleEvaluationRequest:
+      type: object
+      required:
+        - source
+        - batch_id
+        - records
+      properties:
+        source:
+          type: string
+          description: Data source name
+        batch_id:
+          type: string
+          description: Batch being validated
+        records:
+          type: array
+          items:
+            type: object
+          description: Records to evaluate rules against
+        rule_ids:
+          type: array
+          items:
+            type: string
+          description: Specific rules to evaluate (empty = all)
+
+    BusinessRuleEvaluationResult:
+      type: object
+      required:
+        - passed
+        - batch_id
+        - rules_evaluated
+        - anomalies
+        - timestamp
+      properties:
+        passed:
+          type: boolean
+          description: True if all rules pass for all records
+        batch_id:
+          type: string
+        rules_evaluated:
+          type: array
+          items:
+            type: string
+          description: Rule IDs that were evaluated
+        anomalies:
+          type: array
+          items:
+            $ref: '#/components/schemas/BusinessLogicAnomaly'
+        timestamp:
+          type: string
+          format: date-time
+
+    BusinessLogicAnomaly:
+      type: object
+      required:
+        - id
+        - failure_code
+        - severity
+        - severity_score
+        - rule_id
+        - rule_name
+        - affected_records
+        - affected_fields
+        - batch_id
+        - timestamp
+        - explanation
+      properties:
+        id:
+          type: string
+        failure_code:
+          type: string
+          enum: [BL-001, BL-002, BL-003, BL-004, BL-005, BL-006, BL-007, BL-008]
+        severity:
+          type: string
+          enum: [INFO, WARNING, CRITICAL]
+        severity_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Calculated using Constitution formula
+        rule_id:
+          type: string
+        rule_name:
+          type: string
+        affected_records:
+          type: array
+          items:
+            type: string
+          description: Record IDs that failed the rule
+        affected_fields:
+          type: array
+          items:
+            type: string
+          description: Fields involved in the violation
+        batch_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        explanation:
+          type: string
+          description: Human-readable violation description
+        expected_value:
+          type: string
+          description: What the rule expected
+        actual_value:
+          type: string
+          description: What was found
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional context
+
+# Skill contracts (internal APIs)
+paths:
+  /skills/silver/crossfield:
+    post:
+      operationId: silverCrossfield
+      summary: Validate cross-field relationships
+      description: Checks relationships between fields in each record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [record, rules]
+              properties:
+                record:
+                  type: object
+                rules:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/BusinessRule'
+      responses:
+        '200':
+          description: Validation complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  violations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        rule:
+                          type: string
+                        fields:
+                          type: array
+                          items:
+                            type: string
+                        values:
+                          type: object
+
+  /skills/silver/refint:
+    post:
+      operationId: silverRefint
+      summary: Check referential integrity
+      description: Validates foreign key references against reference data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [record, refs]
+              properties:
+                record:
+                  type: object
+                refs:
+                  type: object
+                  additionalProperties:
+                    $ref: '#/components/schemas/ReferenceDataSet'
+      responses:
+        '200':
+          description: Check complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orphans:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                        value:
+                          type: string
+                        expected_in:
+                          type: string
+
+  /skills/silver/bizrule:
+    post:
+      operationId: silverBizrule
+      summary: Evaluate business rules
+      description: Evaluates all configured business rules against records
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BusinessRuleEvaluationRequest'
+      responses:
+        '200':
+          description: Evaluation complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessRuleEvaluationResult'
+
+  /skills/silver/distrib:
+    post:
+      operationId: silverDistrib
+      summary: Compare distribution to baseline
+      description: Detects statistical distribution shifts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data, baseline]
+              properties:
+                data:
+                  type: array
+                  items:
+                    type: number
+                baseline:
+                  type: array
+                  items:
+                    type: number
+      responses:
+        '200':
+          description: Comparison complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drift_pct:
+                    type: number
+                    description: Population Stability Index
+                  significant:
+                    type: boolean
+                    description: True if drift exceeds threshold
+                  details:
+                    type: object

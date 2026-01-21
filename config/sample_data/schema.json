@@ -1,0 +1,58 @@
+{
+  "name": "default",
+  "description": "Default schema for sample data validation",
+  "fields": {
+    "id": {
+      "type": "integer",
+      "required": true,
+      "unique": true,
+      "nullable": false
+    },
+    "name": {
+      "type": "string",
+      "required": true,
+      "nullable": false,
+      "max_length": 255
+    },
+    "email": {
+      "type": "string",
+      "required": false,
+      "nullable": true,
+      "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+    },
+    "amount": {
+      "type": "float",
+      "required": true,
+      "nullable": false,
+      "min_value": 0.0,
+      "max_value": 1000000.0
+    },
+    "quantity": {
+      "type": "integer",
+      "required": true,
+      "nullable": false,
+      "min_value": 1,
+      "max_value": 10000
+    },
+    "created_at": {
+      "type": "datetime",
+      "required": true,
+      "nullable": false,
+      "format": "%Y-%m-%d %H:%M:%S"
+    },
+    "status": {
+      "type": "string",
+      "required": true,
+      "nullable": false,
+      "allowed_values": ["active", "inactive", "pending", "archived"]
+    }
+  },
+  "expected_count": {
+    "min": 1,
+    "max": 100000
+  },
+  "encoding": {
+    "expected": "utf-8",
+    "strict": true
+  }
+}

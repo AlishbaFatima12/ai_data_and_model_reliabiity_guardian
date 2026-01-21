@@ -1,0 +1,224 @@
+# Dashboard Internal API Contracts
+# Note: Streamlit is single-page, so these are internal service contracts, not REST APIs
+
+service: DashboardServices
+version: "1.0.0"
+description: Internal service contracts for Unified Monitoring Dashboard
+
+contracts:
+
+  # ─────────────────────────────────────────────────────────────────
+  # DataLoader Service
+  # ─────────────────────────────────────────────────────────────────
+  DataLoader:
+    description: Loads validation results and health data from Bronze tier output
+
+    methods:
+      get_latest_results:
+        description: Get most recent validation results
+        input:
+          limit: int (default=100)
+          since: datetime? (optional filter)
+        output:
+          results: list[ValidationResult]
+          total_count: int
+          has_more: bool
+        errors:
+          - FileNotFoundError: No results directory
+          - JSONDecodeError: Corrupt result file
+
+      get_health_state:
+        description: Get current health state from state file
+        input: none
+        output:
+          health: HealthScore
+          stale: bool (true if >60 seconds old)
+        errors:
+          - FileNotFoundError: No health state file
+
+      get_anomalies:
+        description: Get anomalies from recent results
+        input:
+          severity_filter: list[SeverityLevel]?
+          layer_filter: list[str]?
+          time_range: tuple[datetime, datetime]?
+          limit: int (default=50)
+        output:
+          anomalies: list[Anomaly]
+          by_severity: dict[str, int] (counts)
+        errors:
+          - FileNotFoundError: No results
+
+  # ─────────────────────────────────────────────────────────────────
+  # HealthCalculator Service
+  # ─────────────────────────────────────────────────────────────────
+  HealthCalculator:
+    description: Calculates aggregate health metrics for display
+
+    methods:
+      get_overall_health:
+        description: Get overall system health with trend
+        input:
+          health_state: HealthScore
+        output:
+          score: float (0-100)
+          status: str (Excellent/Good/Fair/Poor/Critical)
+          trend: str (improving/stable/degrading)
+          trend_delta: float (change since last period)
+          color: str (hex color code)
+
+      get_layer_health:
+        description: Get per-layer health breakdown
+        input:
+          health_state: HealthScore
+        output:
+          layers: list[LayerHealthInfo]
+            - name: str
+            - score: float
+            - trend: str
+            - anomaly_count: int
+            - color: str
+
+      get_health_history:
+        description: Get health history for sparkline
+        input:
+          hours: int (default=24, max=168)
+        output:
+          timestamps: list[datetime]
+          scores: list[float]
+
+  # ─────────────────────────────────────────────────────────────────
+  # ImpactTranslator Service
+  # ─────────────────────────────────────────────────────────────────
+  ImpactTranslator:
+    description: Translates technical metrics to business language
+
+    methods:
+      translate_anomaly:
+        description: Convert anomaly to business impact
+        input:
+          anomaly: Anomaly
+        output:
+          impact: BusinessImpact
+
+      translate_health_summary:
+        description: Generate plain language health summary
+        input:
+          health: HealthScore
+          anomaly_counts: dict[str, int]
+        output:
+          summary: str (1-2 sentences, no jargon)
+        examples:
+          - "All systems healthy. No issues detected in the past 24 hours."
+          - "2 data sources showing delays. Customer orders may be up to 3 hours stale."
+          - "ALERT: Critical data quality issue. 5% of payment records have invalid formats."
+
+  # ─────────────────────────────────────────────────────────────────
+  # TimelineBuilder Service
+  # ─────────────────────────────────────────────────────────────────
+  TimelineBuilder:
+    description: Builds timeline events from audit logs and results
+
+    methods:
+      get_timeline_events:
+        description: Get events for incident timeline
+        input:
+          time_range: tuple[datetime, datetime]
+          severity_filter: list[SeverityLevel]?
+          layer_filter: list[str]?
+          asset_filter: list[str]?
+          group_related: bool (default=true)
+        output:
+          events: list[TimelineEvent]
+          groups: list[EventGroup]? (if group_related=true)
+            - id: str
+            - event_ids: list[str]
+            - correlation_type: str (causal/common_cause/cascade)
+
+      get_event_details:
+        description: Get full details for drill-down
+        input:
+          event_id: str
+        output:
+          event: TimelineEvent
+          related_anomaly: Anomaly?
+          related_result: ValidationResult?
+          technical_details: dict (raw metrics, thresholds)
+
+  # ─────────────────────────────────────────────────────────────────
+  # StateManager Service
+  # ─────────────────────────────────────────────────────────────────
+  StateManager:
+    description: Manages persistent dashboard state
+
+    methods:
+      acknowledge_anomaly:
+        description: Mark anomaly as acknowledged
+        input:
+          anomaly_id: str
+          user: str? (optional identifier)
+        output:
+          success: bool
+          acknowledged_at: datetime
+
+      get_acknowledged_ids:
+        description: Get set of acknowledged anomaly IDs
+        input: none
+        output:
+          ids: set[str]
+
+      clear_acknowledgments:
+        description: Clear all acknowledgments (for testing)
+        input: none
+        output:
+          cleared_count: int
+
+# ─────────────────────────────────────────────────────────────────
+# UI Component Contracts
+# ─────────────────────────────────────────────────────────────────
+components:
+
+  ExecutiveSummary:
+    description: Top panel showing health at a glance (FR-001 to FR-005)
+    props:
+      health_score: float
+      health_status: str
+      health_color: str
+      trend: str
+      trend_delta: float
+      active_issues: dict[str, int] (by severity)
+      last_updated: datetime
+      plain_summary: str
+
+  LayerHealth:
+    description: Per-layer health cards (FR-006 to FR-009)
+    props:
+      layers: list[LayerHealthInfo]
+      overall_formula: str ("minimum of all layer scores")
+    interactions:
+      on_layer_click: (layer_name) -> expand drill-down
+
+  IncidentTimeline:
+    description: Timeline visualization (FR-018 to FR-022)
+    props:
+      events: list[TimelineEvent]
+      groups: list[EventGroup]?
+      time_range: tuple[datetime, datetime]
+      zoom_level: str (hour/day/week/month)
+    interactions:
+      on_event_hover: (event_id) -> show popup
+      on_event_click: (event_id) -> expand details
+      on_zoom: (level) -> adjust time scale
+      on_filter: (filters) -> update events
+
+  DrillDown:
+    description: Progressive detail reveal (FR-023 to FR-025)
+    props:
+      level: int (1=plain, 2=summary, 3=full)
+      context: dict (metric/event/anomaly being drilled)
+      plain_text: str
+      summary_details: dict
+      full_technical: dict
+    interactions:
+      on_expand: -> increase level
+      on_collapse: -> decrease level

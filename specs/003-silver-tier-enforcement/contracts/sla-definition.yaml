@@ -1,0 +1,355 @@
+# SLA Definition API Contract
+# Feature: 003-silver-tier-enforcement
+# Date: 2026-01-18
+
+openapi: 3.1.0
+info:
+  title: SLA Definition API
+  description: API for managing SLA definitions in Silver Tier Layer 4 (Freshness & SLA Watcher)
+  version: 1.0.0
+
+components:
+  schemas:
+    FreshnessThreshold:
+      type: object
+      required:
+        - warning_minutes
+        - critical_minutes
+      properties:
+        warning_minutes:
+          type: integer
+          description: Minutes until WARNING severity
+          default: 60
+          minimum: 1
+          example: 60
+        critical_minutes:
+          type: integer
+          description: Minutes until CRITICAL severity
+          default: 90
+          minimum: 1
+          example: 90
+
+    SLADefinition:
+      type: object
+      required:
+        - id
+        - source
+        - schedule
+        - freshness_threshold
+        - enabled
+      properties:
+        id:
+          type: string
+          description: Unique SLA identifier
+          example: "sla-orders-hourly"
+        source:
+          type: string
+          description: Data source name
+          example: "orders"
+        schedule:
+          type: string
+          description: Cron expression for expected arrivals
+          example: "0 * * * *"
+        freshness_threshold:
+          $ref: '#/components/schemas/FreshnessThreshold'
+        latency_threshold:
+          type: integer
+          description: Max end-to-end seconds
+          minimum: 1
+          example: 1800
+        enabled:
+          type: boolean
+          default: true
+        owner:
+          type: string
+          description: Responsible team/person
+          example: "data-platform-team"
+        description:
+          type: string
+          description: SLA purpose
+
+    FreshnessState:
+      type: object
+      required:
+        - source
+        - last_arrival
+        - age_seconds
+        - status
+      properties:
+        source:
+          type: string
+          description: Data source name
+        last_arrival:
+          type: string
+          format: date-time
+          description: When data last arrived
+        age_seconds:
+          type: integer
+          description: Seconds since last arrival
+          minimum: 0
+        status:
+          type: string
+          enum: [OK, WARNING, CRITICAL, UNKNOWN]
+          description: Current freshness status
+        next_expected:
+          type: string
+          format: date-time
+          description: Next expected arrival per schedule
+        sla_id:
+          type: string
+          description: Associated SLA definition
+
+    FreshnessAnomaly:
+      type: object
+      required:
+        - id
+        - failure_code
+        - severity
+        - source
+        - sla_id
+        - expected_at
+        - delay_seconds
+        - timestamp
+        - explanation
+      properties:
+        id:
+          type: string
+        failure_code:
+          type: string
+          enum: [FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008]
+          description: |
+            Freshness failure codes:
+            - FR-001: Data Stale
+            - FR-002: SLA Breach
+            - FR-003: SLA Warning
+            - FR-004: Pipeline Delay
+            - FR-005: Missing Delivery
+            - FR-006: Job Failure
+            - FR-007: Dependency Delay
+            - FR-008: Latency Spike
+        severity:
+          type: string
+          enum: [INFO, WARNING, CRITICAL]
+        source:
+          type: string
+          description: Data source name
+        sla_id:
+          type: string
+          description: SLA definition reference
+        expected_at:
+          type: string
+          format: date-time
+          description: When data was expected
+        last_arrival:
+          type: string
+          format: date-time
+          description: When data last arrived
+        delay_seconds:
+          type: integer
+          description: Delay duration in seconds
+          minimum: 0
+        timestamp:
+          type: string
+          format: date-time
+          description: Detection time
+        explanation:
+          type: string
+          description: Human-readable description
+        pipeline_stage:
+          type: string
+          description: For pipeline stall issues
+        details:
+          type: object
+          additionalProperties: true
+
+    PipelineStage:
+      type: object
+      required:
+        - name
+        - started_at
+        - status
+      properties:
+        name:
+          type: string
+          description: Stage name
+          example: "transform"
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        duration_ms:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum: [PENDING, RUNNING, COMPLETED, FAILED, STALLED]
+        expected_duration_ms:
+          type: integer
+          description: Expected stage duration
+          minimum: 0
+
+    DependencyChain:
+      type: object
+      required:
+        - source
+        - dependencies
+      properties:
+        source:
+          type: string
+          description: Data source name
+        dependencies:
+          type: array
+          items:
+            type: object
+            properties:
+              upstream:
+                type: string
+                description: Upstream source name
+              status:
+                type: string
+                enum: [OK, DELAYED, BLOCKED]
+              delay_seconds:
+                type: integer
+
+# Skill contracts (internal APIs)
+paths:
+  /skills/silver/freshness:
+    post:
+      operationId: silverFreshness
+      summary: Check data staleness
+      description: Checks if data source is stale based on SLA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source]
+              properties:
+                source:
+                  type: string
+                  description: Data source to check
+      responses:
+        '200':
+          description: Check complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  age_seconds:
+                    type: integer
+                    description: Seconds since last arrival
+                  stale:
+                    type: boolean
+                    description: True if exceeds threshold
+                  threshold:
+                    type: integer
+                    description: Current threshold in seconds
+
+  /skills/silver/sla:
+    post:
+      operationId: silverSla
+      summary: Track SLA compliance
+      description: Checks SLA status for a data source
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source, sla]
+              properties:
+                source:
+                  type: string
+                sla:
+                  $ref: '#/components/schemas/SLADefinition'
+      responses:
+        '200':
+          description: SLA check complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [OK, WARNING, BREACH]
+                  eta:
+                    type: string
+                    format: date-time
+                    description: Estimated next delivery
+                  at_risk:
+                    type: boolean
+                    description: True if approaching breach
+
+  /skills/silver/pipeline:
+    post:
+      operationId: silverPipeline
+      summary: Monitor pipeline duration
+      description: Tracks pipeline stage execution times
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pipeline_id]
+              properties:
+                pipeline_id:
+                  type: string
+      responses:
+        '200':
+          description: Pipeline status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  duration_ms:
+                    type: integer
+                  expected_ms:
+                    type: integer
+                  ok:
+                    type: boolean
+                    description: True if within expected duration
+
+  /skills/silver/dependency:
+    post:
+      operationId: silverDependency
+      summary: Track dependency chain
+      description: Monitors upstream dependencies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dag]
+              properties:
+                dag:
+                  $ref: '#/components/schemas/DependencyChain'
+      responses:
+        '200':
+          description: Dependency check complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  delays:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        node:
+                          type: string
+                        delay_ms:
+                          type: integer
+                  blocked:
+                    type: array
+                    items:
+                      type: string
+                    description: Sources blocked by delays
